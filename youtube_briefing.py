@@ -210,35 +210,67 @@ def build_text(
     return "\n".join(lines)
 
 
-def run() -> tuple[str, str, str]:
-    if not YOUTUBE_API_KEY:
-        sys.exit("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.")
+DEMO_VIDEOS: list[dict] = [
+    {"video_id": "demo1", "title": "클로드 코드 완전 정복! 5가지 핵심 기능 총정리 (2026 최신)", "channel": "AI 마스터", "views": 48200},
+    {"video_id": "demo2", "title": "클로드 코드 vs GPT-4o 코딩 대결 — 누가 더 빠를까?", "channel": "개발자의 하루", "views": 31500},
+    {"video_id": "demo3", "title": "클로드 코드로 풀스택 앱 만드는 방법 (처음부터 끝까지)", "channel": "코딩스튜디오", "views": 22800},
+    {"video_id": "demo4", "title": "Claude Code 솔직 리뷰 — 6개월 써본 현직 개발자 후기", "channel": "프로개발자K", "views": 17900},
+    {"video_id": "demo5", "title": "클로드 코드 무료로 쓰는 3가지 방법 2026년 버전", "channel": "절약왕테크", "views": 14300},
+]
+
+
+def run(demo: bool = False) -> tuple[str, str, str]:
+    if not YOUTUBE_API_KEY and not demo:
+        print("[!] YOUTUBE_API_KEY 미설정 → 데모 모드로 실행합니다.", file=sys.stderr)
+        demo = True
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    all_videos: list[dict] = []
     briefing_html = ""
     briefing_text = ""
 
     for keyword in KEYWORDS:
-        print(f"[*] '{keyword}' 검색 중…")
-        raw = search_videos(keyword)
-        top = enrich_and_rank(raw)
+        if demo:
+            print(f"[*] '{keyword}' 데모 데이터 사용 중…")
+            top = DEMO_VIDEOS
+        else:
+            print(f"[*] '{keyword}' 검색 중…")
+            raw = search_videos(keyword)
+            top = enrich_and_rank(raw)
+            print(f"    → {len(top)}개 영상 수집 완료")
+
         titles = [v["title"] for v in top]
         patterns = analyze_patterns(titles)
         key_points = derive_key_points(top, patterns)
-        all_videos.extend(top)
 
-        briefing_html += build_html(keyword, top, patterns, key_points, now)
-        briefing_text += build_text(keyword, top, patterns, key_points, now) + "\n\n"
-        print(f"    → {len(top)}개 영상 수집 완료")
+        demo_banner = (
+            "<p style='background:#fff3cd;padding:8px;border-left:4px solid #ffc107'>"
+            "⚠️ <b>데모 실행</b> — YOUTUBE_API_KEY 설정 후 실제 데이터로 대체됩니다</p>"
+            if demo else ""
+        )
+        briefing_html += demo_banner + build_html(keyword, top, patterns, key_points, now)
+        briefing_text += (
+            ("⚠️ 데모 실행 — YOUTUBE_API_KEY 설정 후 실제 데이터로 대체됩니다\n\n" if demo else "")
+            + build_text(keyword, top, patterns, key_points, now)
+            + "\n\n"
+        )
 
-    subject = f"[YouTube 브리핑] 클로드 코드 트렌드 — {now}"
+    subject = f"[YouTube 트렌드 브리핑] 클로드 코드 — {datetime.now().strftime('%Y년 %m월 %d일')}"
     return subject, briefing_html, briefing_text
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="YouTube 트렌드 브리핑 생성")
+    parser.add_argument("--json", action="store_true", help="JSON 형식으로 출력")
+    args = parser.parse_args()
+
     subject, html, text = run()
-    print("\n" + "=" * 60)
-    print(text)
-    print("=" * 60)
-    print("\n✅ 브리핑 생성 완료. Gmail 초안을 생성하려면 send_briefing.py를 실행하세요.")
+
+    if args.json:
+        print(json.dumps({"subject": subject, "html": html, "text": text}, ensure_ascii=False))
+    else:
+        print("\n" + "=" * 60)
+        print(text)
+        print("=" * 60)
+        print("\n✅ 브리핑 생성 완료. send_briefing.py를 실행하면 Gmail 초안이 생성됩니다.")
