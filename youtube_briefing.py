@@ -210,8 +210,17 @@ def build_text(
     return "\n".join(lines)
 
 
-def run() -> tuple[str, str, str]:
-    if not YOUTUBE_API_KEY:
+SAMPLE_VIDEOS = [
+    {"video_id": "s1", "title": "클로드 코드 완전 정복 — 5가지 핵심 기능", "channel": "AI실험실", "published_at": "", "views": 18400},
+    {"video_id": "s2", "title": "클로드 코드 vs Cursor, 뭐가 더 좋나요?", "channel": "개발자TV", "published_at": "", "views": 14200},
+    {"video_id": "s3", "title": "클로드 코드 설치·설정 완벽 가이드 (2026)", "channel": "테크채널코리아", "published_at": "", "views": 9800},
+    {"video_id": "s4", "title": "클로드 코드로 FastAPI 앱 10분 만에 완성하는 방법", "channel": "빠른개발", "published_at": "", "views": 7300},
+    {"video_id": "s5", "title": "솔직 리뷰: 클로드 코드 한 달 써본 후기", "channel": "리뷰왕", "published_at": "", "views": 5900},
+]
+
+
+def run(sample: bool = False) -> tuple[str, str, str]:
+    if not sample and not YOUTUBE_API_KEY:
         sys.exit("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -221,8 +230,11 @@ def run() -> tuple[str, str, str]:
 
     for keyword in KEYWORDS:
         print(f"[*] '{keyword}' 검색 중…")
-        raw = search_videos(keyword)
-        top = enrich_and_rank(raw)
+        if sample:
+            top = SAMPLE_VIDEOS
+        else:
+            raw = search_videos(keyword)
+            top = enrich_and_rank(raw)
         titles = [v["title"] for v in top]
         patterns = analyze_patterns(titles)
         key_points = derive_key_points(top, patterns)
@@ -237,8 +249,11 @@ def run() -> tuple[str, str, str]:
 
 
 if __name__ == "__main__":
-    subject, html, text = run()
+    is_sample = "--sample" in sys.argv
+    subject, html, text = run(sample=is_sample)
     print("\n" + "=" * 60)
     print(text)
     print("=" * 60)
+    if is_sample:
+        print("\n⚠️  샘플 데이터로 생성된 브리핑입니다. 실제 사용 시 YOUTUBE_API_KEY를 설정하세요.")
     print("\n✅ 브리핑 생성 완료. Gmail 초안을 생성하려면 send_briefing.py를 실행하세요.")
