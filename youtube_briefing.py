@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""YouTube Trend Briefing Generator — 매일 아침 키워드별 트렌드 브리핑"""
+"""YouTube Trend Briefing Generator — 매일 아침 키워드별 트렌드 브리핑
+
+사용법:
+  python youtube_briefing.py             # 실제 YouTube API 호출
+  python youtube_briefing.py --mock      # API 키 없이 샘플 데이터로 테스트
+  python youtube_briefing.py --save      # briefing_result.json 저장
+  python youtube_briefing.py --mock --save
+"""
 
 import os
 import re
 import sys
 import json
+import argparse
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +22,17 @@ YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 KEYWORDS = ["클로드 코드"]
 TOP_N = 5
+
+# --mock 모드에서 사용할 샘플 데이터
+MOCK_DATA: dict[str, list[dict]] = {
+    "클로드 코드": [
+        {"video_id": "mock1", "title": "클로드 코드 완벽 사용법 — 5가지 핵심 기능", "channel": "AI 튜토리얼 채널", "published_at": "", "views": 15420},
+        {"video_id": "mock2", "title": "Claude Code vs Cursor: 어떤 AI 코딩 도구가 더 좋을까?", "channel": "개발자 인사이트", "published_at": "", "views": 9870},
+        {"video_id": "mock3", "title": "클로드 코드로 30분 만에 풀스택 앱 만들기", "channel": "빠른 개발 연구소", "published_at": "", "views": 7340},
+        {"video_id": "mock4", "title": "Claude Code 무료 vs 유료 — 솔직 후기·장단점 비교", "channel": "테크 리뷰 코리아", "published_at": "", "views": 6210},
+        {"video_id": "mock5", "title": "클로드 코드 설치·설정 완전 정복 (2025 최신)", "channel": "코딩 왕초보 탈출", "published_at": "", "views": 4980},
+    ]
+}
 
 
 def search_videos(keyword: str, max_results: int = 10) -> list[dict]:
@@ -142,7 +161,13 @@ def build_html(
     patterns: dict[str, list[str]],
     key_points: list[str],
     generated_at: str,
+    is_mock: bool = False,
 ) -> str:
+    mock_badge = (
+        '<span style="background:#f90;color:#fff;padding:2px 8px;border-radius:4px;'
+        'font-size:0.75em;margin-left:8px">샘플 데이터</span>'
+        if is_mock else ""
+    )
     rows = "".join(
         f"<tr><td>{i + 1}</td><td>{v['title']}</td>"
         f"<td>{v['channel']}</td><td>{v['views']:,}</td></tr>"
@@ -157,7 +182,7 @@ def build_html(
 
     return f"""
 <html><body style="font-family:sans-serif;max-width:700px;margin:auto;color:#222">
-<h2 style="color:#c00">📊 YouTube 트렌드 브리핑 — {generated_at}</h2>
+<h2 style="color:#c00">📊 YouTube 트렌드 브리핑 — {generated_at}{mock_badge}</h2>
 <h3>키워드: <span style="color:#1a73e8">{keyword}</span></h3>
 
 <h4>🎬 상위 {TOP_N}개 영상 (최근 24시간)</h4>
@@ -210,9 +235,9 @@ def build_text(
     return "\n".join(lines)
 
 
-def run() -> tuple[str, str, str]:
-    if not YOUTUBE_API_KEY:
-        sys.exit("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.")
+def run(mock: bool = False) -> tuple[str, str, str]:
+    if not mock and not YOUTUBE_API_KEY:
+        sys.exit("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다. 테스트하려면 --mock 플래그를 사용하세요.")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     all_videos: list[dict] = []
@@ -220,15 +245,20 @@ def run() -> tuple[str, str, str]:
     briefing_text = ""
 
     for keyword in KEYWORDS:
-        print(f"[*] '{keyword}' 검색 중…")
-        raw = search_videos(keyword)
-        top = enrich_and_rank(raw)
+        if mock:
+            print(f"[*] '{keyword}' 샘플 데이터 사용 중…")
+            top = MOCK_DATA.get(keyword, [])[:TOP_N]
+        else:
+            print(f"[*] '{keyword}' 검색 중…")
+            raw = search_videos(keyword)
+            top = enrich_and_rank(raw)
+
         titles = [v["title"] for v in top]
         patterns = analyze_patterns(titles)
         key_points = derive_key_points(top, patterns)
         all_videos.extend(top)
 
-        briefing_html += build_html(keyword, top, patterns, key_points, now)
+        briefing_html += build_html(keyword, top, patterns, key_points, now, is_mock=mock)
         briefing_text += build_text(keyword, top, patterns, key_points, now) + "\n\n"
         print(f"    → {len(top)}개 영상 수집 완료")
 
@@ -236,9 +266,27 @@ def run() -> tuple[str, str, str]:
     return subject, briefing_html, briefing_text
 
 
-if __name__ == "__main__":
-    subject, html, text = run()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="YouTube 트렌드 브리핑 생성기")
+    parser.add_argument("--mock", action="store_true", help="API 키 없이 샘플 데이터로 실행")
+    parser.add_argument("--save", action="store_true", help="briefing_result.json 파일로 저장")
+    args = parser.parse_args()
+
+    subject, html, text = run(mock=args.mock)
+
+    if args.save:
+        output = {"subject": subject, "html": html, "text": text}
+        with open("briefing_result.json", "w", encoding="utf-8") as f:
+            json.dump(output, f, ensure_ascii=False, indent=2)
+        print("\n[저장] briefing_result.json 생성 완료")
+
     print("\n" + "=" * 60)
     print(text)
     print("=" * 60)
-    print("\n✅ 브리핑 생성 완료. Gmail 초안을 생성하려면 send_briefing.py를 실행하세요.")
+    print("\n브리핑 생성 완료.")
+    if not args.save:
+        print("Gmail 전송: python send_briefing.py [--mock]")
+
+
+if __name__ == "__main__":
+    main()
