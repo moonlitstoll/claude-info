@@ -210,8 +210,47 @@ def build_text(
     return "\n".join(lines)
 
 
-def run() -> tuple[str, str, str]:
-    if not YOUTUBE_API_KEY:
+DEMO_VIDEOS: list[dict] = [
+    {
+        "video_id": "demo1",
+        "title": "클로드 코드 완전정복 - 10가지 핵심 기능 총정리",
+        "channel": "AI개발자TV",
+        "published_at": "2026-04-27T03:00:00Z",
+        "views": 18420,
+    },
+    {
+        "video_id": "demo2",
+        "title": "클로드 코드 vs ChatGPT - 실전 코딩 비교 테스트",
+        "channel": "코딩채널",
+        "published_at": "2026-04-27T01:30:00Z",
+        "views": 11850,
+    },
+    {
+        "video_id": "demo3",
+        "title": "클로드 코드 설치부터 실전 활용까지 한 번에 정리",
+        "channel": "테크리뷰Korea",
+        "published_at": "2026-04-26T22:00:00Z",
+        "views": 9320,
+    },
+    {
+        "video_id": "demo4",
+        "title": "클로드 코드 어떻게 쓰면 생산성 3배 올릴 수 있을까?",
+        "channel": "생산성연구소",
+        "published_at": "2026-04-27T00:00:00Z",
+        "views": 7640,
+    },
+    {
+        "video_id": "demo5",
+        "title": "클로드 코드 솔직 후기 - 장단점 분석",
+        "channel": "개발일기",
+        "published_at": "2026-04-26T21:00:00Z",
+        "views": 5310,
+    },
+]
+
+
+def run(demo: bool = False) -> tuple[str, str, str]:
+    if not demo and not YOUTUBE_API_KEY:
         sys.exit("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -220,9 +259,14 @@ def run() -> tuple[str, str, str]:
     briefing_text = ""
 
     for keyword in KEYWORDS:
-        print(f"[*] '{keyword}' 검색 중…")
-        raw = search_videos(keyword)
-        top = enrich_and_rank(raw)
+        if demo:
+            print(f"[DEMO] '{keyword}' 데모 데이터 사용 중…")
+            top = DEMO_VIDEOS[:TOP_N]
+        else:
+            print(f"[*] '{keyword}' 검색 중…")
+            raw = search_videos(keyword)
+            top = enrich_and_rank(raw)
+
         titles = [v["title"] for v in top]
         patterns = analyze_patterns(titles)
         key_points = derive_key_points(top, patterns)
@@ -237,8 +281,20 @@ def run() -> tuple[str, str, str]:
 
 
 if __name__ == "__main__":
-    subject, html, text = run()
-    print("\n" + "=" * 60)
-    print(text)
-    print("=" * 60)
-    print("\n✅ 브리핑 생성 완료. Gmail 초안을 생성하려면 send_briefing.py를 실행하세요.")
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--demo", action="store_true", help="실제 API 없이 데모 데이터로 실행")
+    parser.add_argument("--json", action="store_true", help="JSON 형식으로 출력")
+    args = parser.parse_args()
+
+    subject, html, text = run(demo=args.demo)
+
+    if args.json:
+        import json as _json
+        print(_json.dumps({"subject": subject, "html": html, "text": text}, ensure_ascii=False))
+    else:
+        print("\n" + "=" * 60)
+        print(text)
+        print("=" * 60)
+        print("\n✅ 브리핑 생성 완료. Gmail 초안을 생성하려면 send_briefing.py를 실행하세요.")
